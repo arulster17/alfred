@@ -1,0 +1,21 @@
+# Discord bot framework - latest version with Python 3.14 support
+discord.py>=2.6.4
+
+# Google Gemini AI - new package (replaces google-generativeai)
+google-genai>=0.3.0
+
+# Google Calendar API - updated for Python 3.14
+google-auth>=2.37.0
+google-auth-oauthlib>=1.2.1
+google-auth-httplib2>=0.2.0
+google-api-python-client>=2.155.0
+
+# Protobuf - compatible with google-ai-generativelanguage
+protobuf>=5.29.2,<6.0.0
+
+# Environment variables
+python-dotenv>=1.0.1
+
+# Ensure we have compatible versions of core dependencies
+grpcio>=1.68.1
+grpcio-status>=1.68.1
