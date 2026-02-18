@@ -50,23 +50,9 @@ Examples of what this feature handles:
 - Small talk that doesn't involve tasks
 - Questions about capabilities
 
-This is a FALLBACK feature - use it when the message doesn't match any specific task feature.
-
-Keywords: hello, hi, hey, thanks, thank you, how are you, what can you do, help, who are you
+This is a FALLBACK feature - use it when the message doesn't match any specific task feature
         """.strip()
 
-    def can_handle(self, message_text):
-        """
-        Fallback for keyword matching.
-        Generally handles greetings and non-task messages.
-        """
-        lower_text = message_text.lower()
-        conversational_keywords = [
-            'hello', 'hi', 'hey', 'thanks', 'thank you',
-            'how are you', 'what\'s up', 'sup',
-            'who are you', 'what can you do', 'help'
-        ]
-        return any(kw in lower_text for kw in conversational_keywords)
 
     async def handle(self, message, message_text, context=None):
         """
@@ -123,13 +109,7 @@ Return ONLY your response text, no extra formatting or labels.
 
         except Exception as e:
             print(f"Error in conversation feature: {str(e)}")
-            # Fallback to simple response
-            lower_text = message_text.lower()
-            if any(greeting in lower_text for greeting in ['hello', 'hi', 'hey']):
-                return f"Hello! I'm {BOT_NAME}. How can I help you stay organized today?"
-            elif 'thank' in lower_text:
-                return "You're welcome! Let me know if you need anything else."
-            elif any(q in lower_text for q in ['how are you', 'what\'s up']):
-                return "I'm doing great! Ready to help you manage your calendar. What do you need?"
-            else:
-                return "I'm here to help! Right now I can create calendar events from natural language. What would you like to schedule?"
+            import traceback
+            traceback.print_exc()
+            # Simple fallback when AI fails
+            return f"Hello! I'm {BOT_NAME}, your assistant. I can help with calendar events and more. What would you like to do?"

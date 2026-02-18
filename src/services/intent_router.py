@@ -101,16 +101,15 @@ class IntentRouter:
         except Exception as e:
             error_str = str(e)
             print(f"Error in intent routing: {error_str}")
+            import traceback
+            traceback.print_exc()
 
             # Check if it's a rate limit error
             if '429' in error_str or 'RESOURCE_EXHAUSTED' in error_str or 'quota' in error_str.lower():
                 # Return None to trigger special rate limit message
                 return None
 
-            # Fallback: try first feature that says it can handle
-            for feature in self.features:
-                if hasattr(feature, 'can_handle') and feature.can_handle(message_text):
-                    return feature
+            # No fallback - if AI routing fails, we fail gracefully
             return None
 
     def _build_routing_prompt(self, message_text, feature_descriptions, context=None):

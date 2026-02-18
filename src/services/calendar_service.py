@@ -7,30 +7,44 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
-# If modifying these scopes, delete the file token.pickle
-SCOPES = ['https://www.googleapis.com/auth/calendar']
+# Scopes for dual authentication approach
+# User scope: Read-only access to all calendars (for viewing schedule)
+# Note: calendar.readonly includes both calendar list access AND event reading
+USER_SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
+
+# Bot scope: Full access (but only has ACL permissions to bot calendar)
+BOT_SCOPES = ['https://www.googleapis.com/auth/calendar']
 
 # Get project root directory relative to this file
 # Path: src/services/calendar_service.py -> go up to project root
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
-# All paths relative to project root
-CREDENTIALS_PATH = PROJECT_ROOT / 'credentials' / 'google_credentials.json'
-TOKEN_PATH = PROJECT_ROOT / 'token.pickle'
+# User credentials (for reading all calendars)
+USER_CREDENTIALS_PATH = PROJECT_ROOT / 'credentials' / 'user_credentials.json'
+USER_TOKEN_PATH = PROJECT_ROOT / 'user_token.pickle'
 
-def get_calendar_service():
+# Bot credentials (for writing to bot calendar only)
+BOT_CREDENTIALS_PATH = PROJECT_ROOT / 'credentials' / 'bot_credentials.json'
+BOT_TOKEN_PATH = PROJECT_ROOT / 'bot_token.pickle'
+
+def _get_service(credentials_path, token_path, scopes, service_type="calendar"):
     """
-    Authenticate and return Google Calendar service instance.
+    Generic authentication function for both user and bot credentials.
 
-    This function handles OAuth2 authentication flow:
-    - First time: Opens browser for user to authorize
-    - Subsequent times: Uses saved credentials from token.pickle
+    Args:
+        credentials_path: Path to credentials JSON file
+        token_path: Path to store token pickle
+        scopes: List of OAuth scopes
+        service_type: Type of service ("user" or "bot") for error messages
+
+    Returns:
+        Google Calendar service instance
     """
     creds = None
 
-    # Token file stores user's access and refresh tokens
-    if TOKEN_PATH.exists():
-        with open(TOKEN_PATH, 'rb') as token:
+    # Token file stores access and refresh tokens
+    if token_path.exists():
+        with open(token_path, 'rb') as token:
             creds = pickle.load(token)
 
     # If no valid credentials, let user log in
@@ -39,27 +53,63 @@ def get_calendar_service():
             creds.refresh(Request())
         else:
             # Need credentials.json from Google Cloud Console
-            if not CREDENTIALS_PATH.exists():
+            if not credentials_path.exists():
                 raise FileNotFoundError(
-                    f"Google credentials not found at {CREDENTIALS_PATH}\n"
+                    f"{service_type.title()} credentials not found at {credentials_path}\n"
                     f"Please download OAuth credentials from Google Cloud Console\n"
-                    f"and save to: {CREDENTIALS_PATH}"
+                    f"and save to: {credentials_path}"
                 )
 
             flow = InstalledAppFlow.from_client_secrets_file(
-                str(CREDENTIALS_PATH), SCOPES)
+                str(credentials_path), scopes)
             creds = flow.run_local_server(port=0)
 
         # Save credentials for next run
-        with open(TOKEN_PATH, 'wb') as token:
+        with open(token_path, 'wb') as token:
             pickle.dump(creds, token)
 
     service = build('calendar', 'v3', credentials=creds)
     return service
 
+def get_read_service():
+    """
+    Get Calendar service with READ-ONLY access to all calendars.
+
+    Used for:
+    - Viewing schedule ("what's my schedule today")
+    - Reading events from any calendar
+    - No modification permissions
+
+    Returns:
+        Google Calendar service instance (readonly)
+    """
+    return _get_service(USER_CREDENTIALS_PATH, USER_TOKEN_PATH, USER_SCOPES, "user")
+
+def get_write_service():
+    """
+    Get Calendar service with WRITE access to bot calendar only.
+
+    Used for:
+    - Creating new events
+    - Modifying events
+    - Only has ACL permissions to bot calendar (physical isolation)
+
+    Returns:
+        Google Calendar service instance (bot calendar only)
+    """
+    return _get_service(BOT_CREDENTIALS_PATH, BOT_TOKEN_PATH, BOT_SCOPES, "bot")
+
+# Legacy function for backwards compatibility
+def get_calendar_service():
+    """
+    Legacy function - returns write service.
+    Use get_read_service() or get_write_service() directly instead.
+    """
+    return get_write_service()
+
 def create_calendar_event(event_data):
     """
-    Create a calendar event in Google Calendar.
+    Create a calendar event in bot calendar.
 
     Args:
         event_data (dict): Event details with structure:
@@ -76,7 +126,7 @@ def create_calendar_event(event_data):
     Returns:
         dict: Created event from Google Calendar API
     """
-    service = get_calendar_service()
+    service = get_write_service()
 
     # Build event object for Google Calendar API
     event = {
@@ -125,7 +175,7 @@ def create_calendar_event(event_data):
 
 def search_events(query, max_results=100, time_min=None, time_max=None):
     """
-    Search for calendar events by text query.
+    Search for calendar events in bot calendar by text query.
 
     Args:
         query (str): Search query (searches title, description, location)
@@ -136,7 +186,7 @@ def search_events(query, max_results=100, time_min=None, time_max=None):
     Returns:
         list: List of matching events
     """
-    service = get_calendar_service()
+    service = get_write_service()  # Search in bot calendar for modifications
     calendar_id = os.getenv('GOOGLE_CALENDAR_ID', 'primary')
 
     # Default to searching from now onwards
@@ -164,7 +214,7 @@ def search_events(query, max_results=100, time_min=None, time_max=None):
 
 def modify_event(event_id, updates):
     """
-    Modify an existing calendar event.
+    Modify an existing calendar event in bot calendar.
 
     Args:
         event_id (str): Google Calendar event ID
@@ -180,7 +230,7 @@ def modify_event(event_id, updates):
     Returns:
         dict: Updated event from Google Calendar API
     """
-    service = get_calendar_service()
+    service = get_write_service()
     calendar_id = os.getenv('GOOGLE_CALENDAR_ID', 'primary')
 
     # Get the existing event first

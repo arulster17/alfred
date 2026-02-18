@@ -1,8 +1,8 @@
 # Project Summary - AI Assistant Bot
 
-**Last Updated:** 2026-02-17
-**Status:** ✅ APIs Set Up - Bot Running & In Active Development
-**Version:** 1.2.0
+**Last Updated:** 2026-02-17 (Session 3)
+**Status:** ✅ Dual OAuth Calendar Setup Complete - Bot Running & In Active Development
+**Version:** 1.3.0
 
 ---
 
@@ -26,9 +26,11 @@ When you start a conversation about this codebase:
 **Current State:**
 - ✅ Bot is running locally and tested
 - ✅ Named "Alfred" with defined personality (professional, friendly, task-focused)
-- ✅ Three features: Calendar (creates Google Calendar events) + Fun Facts + Conversation (handles greetings/small talk)
+- ✅ Three features: Calendar (create/modify/view events) + Fun Facts + Conversation (handles greetings/small talk)
 - ✅ All APIs configured (Discord, Gemini, Google Calendar)
-- 🔄 User is refining natural language understanding and routing
+- ✅ **Dual OAuth setup complete** - Readonly access to all calendars, write access to bot calendar only
+- ✅ **100% AI-native** - Zero hardcoded keywords, all routing and parsing via Gemini
+- 🔄 User is refining schedule viewing accuracy
 
 **What to Know:**
 - User wants this to be a general-purpose assistant (not just calendar)
@@ -87,6 +89,14 @@ A general-purpose **personal assistant via Discord DMs** that can:
    - Add reminders: "add 1 hour notification to CSE 127 office hours"
    - All parsing done by AI - no keyword matching
    - **Formatted output**: Shows modified event name, recurrence status, and all changed properties
+
+   **Schedule Viewing:**
+   - View events from ALL calendars (primary, secondary, shared, subscribed)
+   - Natural language queries: "what's my schedule today?", "what's on thursday?", "show me next week"
+   - AI parses time ranges into actual dates (no hardcoded keywords for "today", "tomorrow", etc.)
+   - Reads from all calendars using readonly credentials
+   - Deduplicates events across calendars
+   - Filters events by actual date (timezone-aware)
 
 2. **Fun Fact Feature** - Provide interesting random facts
    - Location: `src/features/fun_fact_feature.py`
@@ -252,6 +262,10 @@ Bot replies to user
 
 **APIs Used:**
 - **Google Calendar API** - Calendar integration (FREE)
+  - **Dual OAuth Setup**: Two separate credential files for security
+    - `user_credentials.json` → readonly scope (`calendar.readonly`) - reads ALL calendars
+    - `bot_credentials.json` → full scope (`calendar`) - writes ONLY to bot calendar
+  - Both use same Google account, security via scopes and code logic
 - **Discord API** - Bot communication (FREE)
 - **OAuth 2.0** - Google Calendar authentication
 
@@ -283,7 +297,10 @@ auto-calendar/
 │   └── utils/
 │       └── auth.py                     # Auth utilities (minimal)
 ├── credentials/                         # Git-ignored
-│   └── google_credentials.json         # Google OAuth credentials
+│   ├── user_credentials.json           # Readonly Google OAuth (all calendars)
+│   └── bot_credentials.json            # Write Google OAuth (bot calendar only)
+├── user_token.pickle                   # Git-ignored - User OAuth token
+├── bot_token.pickle                    # Git-ignored - Bot OAuth token
 ├── .env                                # Git-ignored - API keys
 ├── .env.example                        # Template for .env
 ├── .gitignore
@@ -508,7 +525,11 @@ cd src && python -c "from services.calendar_service import get_calendar_service;
 - Prefers simple solutions over complex ones
 
 **What NOT to Do:**
-- ❌ Don't suggest keyword-based routing
+- ❌ **NEVER add hardcoded keywords or keyword matching** - This is 100% AI-native
+  - No `keywords = [...]` lists
+  - No `can_handle()` methods with keyword checks
+  - No `if "word" in text.lower()` patterns
+  - All routing and parsing is via Gemini AI interpreting meaning
 - ❌ Don't make Alfred overly chatty (he's task-focused)
 - ❌ Don't make calendar-specific suggestions (this is general assistant)
 - ❌ Don't suggest paid APIs or services
@@ -523,7 +544,7 @@ cd src && python -c "from services.calendar_service import get_calendar_service;
 
 **Development History:**
 - **Session 1 (Initial):** Built core architecture, calendar feature, AI routing
-- **Session 2 (2026-02-17):**
+- **Session 2 (2026-02-17 AM):**
   - Added bot personality (Alfred) in `bot_context.py`
   - Added conversation feature for greetings/small talk
   - Set up all APIs (Discord, Gemini, Google Calendar)
@@ -544,14 +565,55 @@ cd src && python -c "from services.calendar_service import get_calendar_service;
   - Added console logging for user/Alfred conversation flow
   - Bot tested and operational
 
-**Current Session Status (2026-02-17):**
-- ✅ Bot running and working
-- ✅ Calendar creating/modifying events with proper titles, descriptions, recurrence, location, reminders
-- ✅ Conversation context system implemented (hybrid: last 10 messages from last 15 minutes)
-- ✅ Console logging shows user messages, Alfred's responses, and context info
-- ✅ **FIXED:** Switched to gemini-flash-latest (working free tier model)
-- ✅ Better error handling for rate limits (user-friendly messages)
-- 🔄 In active development - iterating on features
+- **Session 3 (2026-02-17 PM):**
+  - **MAJOR: Implemented dual OAuth calendar setup**
+    - Split credentials: `user_credentials.json` (readonly) + `bot_credentials.json` (write)
+    - User scope: `calendar.readonly` - reads from ALL calendars
+    - Bot scope: `calendar` (full) - writes ONLY to bot calendar
+    - Physical security via scopes, not just code logic
+  - **Added schedule viewing feature**
+    - New action: `view` (alongside `create` and `modify`)
+    - Queries ALL user calendars (primary, secondary, shared, subscribed)
+    - AI parses natural language time ranges → actual dates
+    - Deduplicates events across calendars
+    - Timezone-aware date filtering
+  - **Removed ALL hardcoded keywords**
+    - Deleted `can_handle()` methods from all features
+    - Removed keyword lists from calendar, conversation, fun fact features
+    - Removed keyword fallback logic from intent_router
+    - 100% AI-native routing and parsing
+  - **Fixed dependency issues**
+    - Installed `python-dotenv` in venv
+    - Moved credential files to correct `credentials/` directory
+    - Re-authenticated with new OAuth scopes
+  - **Debugging schedule accuracy**
+    - Added date filtering to prevent wrong-day events
+    - Added deduplication for events in multiple calendars
+    - Fixed timezone-aware vs naive datetime comparison (all-day events now UTC-aware)
+    - Added extensive debug logging:
+      - Shows all events returned by API
+      - Displays event date vs target date comparison
+      - Indicates which events are included/skipped and why
+    - Investigating missing events issue (some valid events being filtered out)
+
+**Current Session Status (2026-02-17 PM - Latest):**
+- ✅ Dual OAuth setup complete and authenticated
+- ✅ Schedule viewing works across all calendars
+- ✅ 100% AI-native (zero keywords)
+- ✅ All dependencies installed correctly
+- ✅ Fixed timezone-aware vs naive datetime comparison error
+- ✅ Added extensive debug logging for schedule view
+- 🔄 Debugging missing events in schedule view (e.g., "tomato eating competition" at 6:30 PM)
+- 🔄 Investigating date filtering accuracy
+
+**Known Issues Being Debugged:**
+- Some events missing from schedule view despite being in calendar
+- Date filtering may be too aggressive (filtering out valid events)
+- Timezone conversion may cause events to appear on wrong date
+- Added detailed logging to track:
+  - Which events are returned by API
+  - What date/time each event is stored as
+  - Whether events are included or filtered out and why
 
 ## 🚨 Current Issues & Solutions
 

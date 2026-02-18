@@ -8,7 +8,7 @@ in separate modules following the same pattern.
 import os
 from google import genai
 from services.gemini_parser import parse_message_to_events
-from services.calendar_service import create_calendar_event, search_events, modify_event
+from services.calendar_service import create_calendar_event, search_events, modify_event, get_read_service
 
 # Lazy-load Gemini client
 _client = None
@@ -43,6 +43,7 @@ class CalendarFeature:
 This feature can:
 - Create calendar events from natural language descriptions
 - Modify/update existing calendar events (rename, change time, etc.)
+- View your schedule and upcoming events
 - Schedule meetings, appointments, and reminders
 - Handle time-based requests (dates, times, durations)
 - Add events to Google Calendar
@@ -64,23 +65,16 @@ Modifying events:
 - "Move tomorrow's lunch to 1pm"
 - "Change location of dentist appointment to downtown office"
 
-Keywords that indicate this feature: meeting, appointment, schedule, calendar, event, book, reserve, remind (when time-based), rename, change, update, modify, move
+Viewing schedule:
+- "What's on my schedule today?"
+- "What do I have tomorrow?"
+- "Show me my events this week"
+- "What's coming up?"
+- "Do I have anything scheduled for Friday?"
+
+Keywords that indicate this feature: meeting, appointment, schedule, calendar, event, book, reserve, remind (when time-based), rename, change, update, modify, move, what's on, upcoming
         """.strip()
 
-    def can_handle(self, message_text):
-        """
-        Fallback method for keyword-based routing if AI routing fails.
-
-        Args:
-            message_text (str): The user's message
-
-        Returns:
-            bool: True if this feature should handle the message
-        """
-        keywords = ["meeting", "appointment", "schedule", "calendar", "event",
-                   "lunch", "dinner", "call", "tomorrow", "today", "next week"]
-        lower_text = message_text.lower()
-        return any(keyword in lower_text for keyword in keywords)
 
     async def handle(self, message, message_text, context=None):
         """
@@ -110,8 +104,20 @@ Keywords that indicate this feature: meeting, appointment, schedule, calendar, e
                     parsed_request['search_query'],
                     parsed_request['updates']
                 )
-            else:  # action == 'create'
+            elif parsed_request['action'] == 'view':
+                return await self._handle_view_schedule(
+                    parsed_request.get('start_date'),
+                    parsed_request.get('end_date')
+                )
+            elif parsed_request['action'] == 'create':
                 return await self._handle_creation(parsed_request['events'])
+            else:
+                return (
+                    "I couldn't understand your calendar request. "
+                    "Try creating an event ('Meeting tomorrow at 3pm'), "
+                    "viewing your schedule ('What's on my calendar today?'), "
+                    "or modifying an event ('Rename office hours to tutor hours')"
+                )
 
         except Exception as e:
             print(f"Error in calendar feature: {str(e)}")
@@ -136,7 +142,7 @@ Keywords that indicate this feature: meeting, appointment, schedule, calendar, e
 
             client = _get_client()
             now = datetime.now()
-            current_context = f"Current date and time: {now.strftime('%Y-%m-%d %H:%M:%S')}"
+            current_context = f"Current date and time: {now.strftime('%A, %Y-%m-%d %H:%M:%S')} (Today is {now.strftime('%A')})"
 
             # Format conversation context
             context_str = ""
@@ -159,6 +165,13 @@ Use the conversation context above to understand references like "it", "them", "
 If the user refers to something mentioned earlier, use that information.
 
 Based on the meaning of the message, return ONLY valid JSON (no markdown, no explanation):
+
+FOR VIEWING SCHEDULE (asking what's on the calendar):
+{{
+  "action": "view",
+  "start_date": "YYYY-MM-DD",
+  "end_date": "YYYY-MM-DD"
+}}
 
 FOR EVENT CREATION (scheduling new events):
 {{
@@ -194,6 +207,16 @@ FOR EVENT MODIFICATION (changing existing events):
   }}
 }}
 
+VIEW EXAMPLES:
+"What's on my schedule today?"
+→ {{"action": "view", "start_date": "2026-02-17", "end_date": "2026-02-17"}}
+
+"What do I have tomorrow?"
+→ {{"action": "view", "start_date": "2026-02-18", "end_date": "2026-02-18"}}
+
+"Show me my events this week"
+→ {{"action": "view", "start_date": "2026-02-17", "end_date": "2026-02-23"}}
+
 CREATION EXAMPLES:
 "Meeting tomorrow at 3pm"
 → {{"action": "create", "events": [{{"summary": "Meeting", "start_datetime": "2026-02-18 15:00", "end_datetime": "2026-02-18 16:00"}}]}}
@@ -212,8 +235,13 @@ MODIFICATION EXAMPLES:
 → {{"action": "modify", "search_query": "team meeting", "updates": {{"location": "Zoom"}}}}
 
 IMPORTANT GUIDELINES:
+- VIEW: User is asking what events are scheduled ("what's on...", "what do I have...", "show me...")
 - CREATE: User is scheduling something new ("meeting at...", "I have...", "schedule...")
 - MODIFY: User is changing something existing ("rename...", "change...", "add notification to...", "update...")
+- **CRITICAL**: Calculate dates relative to CURRENT date/time provided above
+  - If today is Tuesday, then "Thursday" = add 2 days
+  - If today is Tuesday, then "next Tuesday" = add 7 days
+  - Always count from the current day of week shown above
 - For CREATE: Parse dates/times relative to current date
 - For CREATE: Use 24-hour format (13:00 for 1 PM)
 - For CREATE: Create brief titles, put details in description
@@ -239,7 +267,14 @@ Now parse the message and return ONLY the JSON.
             # Parse JSON
             parsed = json.loads(response_text)
 
-            print(f"📋 Parsed calendar request: action={parsed.get('action')}")
+            action = parsed.get('action')
+            print(f"📋 Parsed calendar request: action={action}")
+
+            # Log additional details for debugging
+            if action == 'view':
+                print(f"   → Start date: {parsed.get('start_date')}")
+                print(f"   → End date: {parsed.get('end_date')}")
+
             return parsed
 
         except json.JSONDecodeError as e:
@@ -443,3 +478,169 @@ Now parse the message and return ONLY the JSON.
             import traceback
             traceback.print_exc()
             return f"An error occurred while modifying events: {str(e)}"
+
+    async def _handle_view_schedule(self, start_date, end_date):
+        """Handle requests to view schedule (uses readonly service to read ALL calendars)"""
+        try:
+            from datetime import datetime, timedelta
+
+            if not start_date or not end_date:
+                return "I couldn't understand the date range for viewing your schedule."
+
+            # Get readonly service (can read all calendars)
+            service = get_read_service()
+
+            # Parse dates from AI-provided format (YYYY-MM-DD)
+            # Use local timezone (PST/PDT) for proper date boundaries
+            from zoneinfo import ZoneInfo
+
+            # Get local timezone (defaulting to America/Los_Angeles)
+            # TODO: Make this configurable per user or auto-detect
+            local_tz = ZoneInfo('America/Los_Angeles')
+
+            # Create start and end times in local timezone
+            start_dt = datetime.strptime(start_date, '%Y-%m-%d').replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=local_tz)
+            # For end date, go to the END of the day (next day at 00:00 local time)
+            end_dt = datetime.strptime(end_date, '%Y-%m-%d').replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=local_tz)
+            end_dt = end_dt + timedelta(days=1)  # Go to start of next day in local timezone
+
+            # Generate friendly label for date range
+            if start_date == end_date:
+                # Single day
+                if start_dt.date() == datetime.now().date():
+                    range_label = "today"
+                elif start_dt.date() == (datetime.now() + timedelta(days=1)).date():
+                    range_label = "tomorrow"
+                else:
+                    range_label = start_dt.strftime('%A, %B %d')
+            else:
+                # Date range
+                range_label = f"{start_dt.strftime('%b %d')} - {end_dt.strftime('%b %d')}"
+
+            # Get list of all calendars
+            calendar_list = service.calendarList().list().execute()
+            calendars = calendar_list.get('items', [])
+
+            print(f"📅 Found {len(calendars)} calendars to query")
+            print(f"📅 Date range: {start_dt.isoformat()} to {end_dt.isoformat()}")
+
+            # Fetch events from ALL calendars and combine them
+            all_events = []
+            for calendar in calendars:
+                calendar_id = calendar['id']
+                calendar_name = calendar.get('summary', 'Unknown')
+
+                try:
+                    # Send timezone-aware timestamps (no 'Z' needed, isoformat includes timezone)
+                    events_result = service.events().list(
+                        calendarId=calendar_id,
+                        timeMin=start_dt.isoformat(),
+                        timeMax=end_dt.isoformat(),
+                        singleEvents=True,
+                        orderBy='startTime'
+                    ).execute()
+
+                    events = events_result.get('items', [])
+
+                    # Tag each event with its calendar name for context
+                    for event in events:
+                        event['_calendar_name'] = calendar_name
+                        all_events.append(event)
+
+                    print(f"  • {calendar_name}: {len(events)} events")
+
+                except Exception as e:
+                    print(f"  ⚠️ Skipping calendar '{calendar_name}': {str(e)}")
+                    continue
+
+            if not all_events:
+                return f"You have no events scheduled for {range_label}."
+
+            # Sort all events: all-day events first, then by start time
+            def get_event_sort_key(event):
+                """Get sortable key for event (all-day events first, then by time)"""
+                from datetime import timezone
+                start = event['start'].get('dateTime', event['start'].get('date'))
+
+                if 'T' in start:  # datetime event
+                    # Return tuple: (1, datetime) - regular events sort after all-day
+                    return (1, datetime.fromisoformat(start.replace('Z', '+00:00')))
+                else:  # all-day event
+                    # Return tuple: (0, datetime) - all-day events sort first
+                    naive_dt = datetime.strptime(start, '%Y-%m-%d')
+                    return (0, naive_dt.replace(tzinfo=timezone.utc))
+
+            all_events.sort(key=get_event_sort_key)
+
+            # Deduplicate events (same summary + same start time = duplicate)
+            seen = set()
+            unique_events = []
+            for event in all_events:
+                event_key = (event.get('summary', 'Untitled'), event['start'].get('dateTime', event['start'].get('date')))
+                if event_key not in seen:
+                    seen.add(event_key)
+                    unique_events.append(event)
+                else:
+                    print(f"  🔄 Skipping duplicate: {event.get('summary')} at {event['start'].get('dateTime', event['start'].get('date'))}")
+
+            all_events = unique_events
+
+            # Format events for display (with date filtering)
+            event_lines = []
+            target_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+
+            print(f"📅 Filtering events for target date: {target_date}")
+            print(f"📅 Processing {len(all_events)} events after deduplication:")
+
+            for event in all_events:
+                summary = event.get('summary', 'Untitled')
+                start = event['start'].get('dateTime', event['start'].get('date'))
+                calendar_name = event.get('_calendar_name', '')
+
+                # Parse and format time
+                if 'T' in start:  # datetime
+                    start_dt_event = datetime.fromisoformat(start.replace('Z', '+00:00'))
+
+                    # DEBUG: Log the actual event date/time
+                    print(f"   📌 {summary}: {start_dt_event.isoformat()}")
+                    print(f"      Calendar: {calendar_name}")
+                    print(f"      Event date: {start_dt_event.date()}, Target: {target_date}")
+
+                    # Check if event is actually on the requested date (using local date)
+                    event_date = start_dt_event.date()
+
+                    if event_date != target_date:
+                        print(f"      ⚠️  SKIPPING - Date mismatch!")
+                        continue
+
+                    print(f"      ✅ INCLUDED")
+                    time_str = start_dt_event.strftime('%-I:%M %p')
+                else:  # all-day event
+                    start_dt_event = datetime.strptime(start, '%Y-%m-%d')
+                    print(f"   📌 {summary}: {start} (all-day)")
+                    print(f"      Calendar: {calendar_name}")
+                    print(f"      ✅ INCLUDED (all-day)")
+                    time_str = "All day"
+
+                # Add location if present
+                location = event.get('location', '')
+                location_str = f" @ {location}" if location else ""
+
+                event_lines.append(f"• {time_str}: **{summary}**{location_str}")
+
+            if not event_lines:
+                return f"You have no events scheduled for {range_label}."
+
+            events_text = "\n".join(event_lines)
+            header = f"📅 Your schedule for {range_label}:\n\n"
+
+            return header + events_text
+
+        except ValueError as e:
+            print(f"Error parsing dates: {str(e)}")
+            return "I couldn't parse the date range. Please try again."
+        except Exception as e:
+            print(f"Error viewing schedule: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return f"An error occurred while viewing your schedule: {str(e)}"

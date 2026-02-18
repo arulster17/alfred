@@ -52,22 +52,8 @@ Examples of what this feature handles:
 - "Tell me something interesting"
 - "Got any fun facts?"
 
-Keywords that indicate this feature: fun fact, interesting fact, random fact, trivia, tell me something
         """.strip()
 
-    def can_handle(self, message_text):
-        """
-        Fallback method for keyword-based routing if AI routing fails.
-
-        Args:
-            message_text (str): The user's message
-
-        Returns:
-            bool: True if this feature should handle the message
-        """
-        keywords = ["fun fact", "interesting fact", "random fact", "trivia", "tell me something interesting"]
-        lower_text = message_text.lower()
-        return any(keyword in lower_text for keyword in keywords)
 
     async def handle(self, message, message_text, context=None):
         """

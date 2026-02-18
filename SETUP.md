@@ -50,43 +50,24 @@ pip install -r requirements.txt
 
 ## Step 3: Google Calendar API Setup (FREE)
 
-### 3.1 Create Google Cloud Project
+⚠️ **IMPORTANT:** Alfred uses **dual authentication** for security. You need to set up TWO OAuth credentials:
+1. **User credentials** (readonly) - Read all calendars
+2. **Bot credentials** (write) - Write to bot calendar only
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Click "Create Project" or select existing project
-3. Name it "ai-assistant-bot" or whatever you prefer
+This ensures Alfred can VIEW your work/personal calendars but can ONLY CREATE/MODIFY events in a dedicated bot calendar.
 
-### 3.2 Enable Google Calendar API
+**👉 Follow the detailed guide:** [BOT_CALENDAR_SETUP.md](BOT_CALENDAR_SETUP.md)
 
-1. In your project, go to "APIs & Services" > "Library"
-2. Search for "Google Calendar API"
-3. Click on it and press "Enable"
+**Quick summary:**
+1. Create a dedicated "Alfred Bot" calendar
+2. Set up two OAuth credentials (user + bot)
+3. Share bot calendar with bot identity
+4. Update .env with bot calendar ID
 
-### 3.3 Create OAuth Credentials
-
-1. Go to "APIs & Services" > "Credentials"
-2. Click "Create Credentials" > "OAuth client ID"
-3. If prompted, configure OAuth consent screen:
-   - User Type: External
-   - App name: "AI Assistant Bot" (or whatever you like)
-   - User support email: your email
-   - Developer contact: your email
-   - Click "Save and Continue"
-   - **On "Scopes" page:** Click "Add or Remove Scopes"
-     - Search for "Google Calendar API"
-     - Select: `https://www.googleapis.com/auth/calendar` (See, edit, share, and permanently delete all calendars)
-     - Click "Update" then "Save and Continue"
-   - **On "Test users" page:** Click "Add Users"
-     - Enter your Gmail address (the one you'll use to authenticate)
-     - Click "Add" then "Save and Continue"
-   - Click "Back to Dashboard"
-4. Back to Create OAuth client ID (go to "APIs & Services" > "Credentials"):
-   - Application type: "Desktop app"
-   - Name: "AI Assistant Desktop"
-   - Click "Create"
-5. Download the JSON file
-6. Rename it to `google_credentials.json`
-7. Move it to `credentials/google_credentials.json`
+**Why this approach:**
+- Alfred can read from ALL calendars (for "what's my schedule")
+- Alfred can only write to bot calendar (physical ACL isolation)
+- Your primary calendar is protected even if code has bugs
 
 **Cost:** FREE
 
