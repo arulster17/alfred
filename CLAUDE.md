@@ -171,4 +171,4 @@ Console logs show: `👤 USER`, `📚 context`, `🤖 routing decision`, `🤵 A
 
 ## Deployment
 
-Not yet decided. Currently running locally. Key constraint: Google OAuth tokens (`*.pickle`) can't be regenerated headlessly, so whatever platform is chosen needs a way to supply them (secrets, mounted storage, etc.).
+**Low priority.** Bot runs locally for now. Cloud hosting is a future consideration — no platform decided yet. Key constraint when the time comes: OAuth tokens (`*.pickle`) can't be regenerated headlessly.
