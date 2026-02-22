@@ -6,6 +6,7 @@ from features.calendar_feature import CalendarFeature
 from features.conversation_feature import ConversationFeature
 from features.fun_fact_feature import FunFactFeature
 from features.youtube_feature import YouTubeFeature
+from features.search_feature import SearchFeature
 from services.intent_router import IntentRouter
 from config.bot_context import BOT_NAME, get_bot_intro
 
@@ -58,6 +59,9 @@ class AssistantBot(commands.Bot):
 
         youtube = YouTubeFeature()
         self.router.register_feature(youtube)
+
+        search = SearchFeature()
+        self.router.register_feature(search)
 
         # Conversation feature (fallback for non-task messages)
         conversation = ConversationFeature()

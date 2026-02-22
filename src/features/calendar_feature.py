@@ -341,9 +341,9 @@ Now parse the message and return ONLY the JSON.
 
                     # Format: "Mon, Feb 17 at 12:00 PM → 3:00 PM"
                     if start_dt.date() == end_dt.date():
-                        time_str = f"{start_dt.strftime('%a, %b %d at %-I:%M %p')} → {end_dt.strftime('%-I:%M %p')}"
+                        time_str = f"{start_dt.strftime('%a, %b %d')} at {start_dt.strftime('%I:%M %p').lstrip('0')} → {end_dt.strftime('%I:%M %p').lstrip('0')}"
                     else:
-                        time_str = f"{start_dt.strftime('%a, %b %d at %-I:%M %p')} → {end_dt.strftime('%a, %b %d at %-I:%M %p')}"
+                        time_str = f"{start_dt.strftime('%a, %b %d')} at {start_dt.strftime('%I:%M %p').lstrip('0')} → {end_dt.strftime('%a, %b %d')} at {end_dt.strftime('%I:%M %p').lstrip('0')}"
 
                     response = f"✓ **{event['summary']}**\n"
                     response += f"📅 {time_str}"
@@ -378,9 +378,9 @@ Now parse the message and return ONLY the JSON.
 
                         # Format time
                         if start_dt.date() == end_dt.date():
-                            time_str = f"{start_dt.strftime('%a, %b %d at %-I:%M %p')} → {end_dt.strftime('%-I:%M %p')}"
+                            time_str = f"{start_dt.strftime('%a, %b %d')} at {start_dt.strftime('%I:%M %p').lstrip('0')} → {end_dt.strftime('%I:%M %p').lstrip('0')}"
                         else:
-                            time_str = f"{start_dt.strftime('%a, %b %d at %-I:%M %p')} → {end_dt.strftime('%a, %b %d at %-I:%M %p')}"
+                            time_str = f"{start_dt.strftime('%a, %b %d')} at {start_dt.strftime('%I:%M %p').lstrip('0')} → {end_dt.strftime('%a, %b %d')} at {end_dt.strftime('%I:%M %p').lstrip('0')}"
 
                         detail = f"• **{event['summary']}**\n  📅 {time_str}"
 
@@ -506,9 +506,9 @@ Now parse the message and return ONLY the JSON.
             # Generate friendly label for date range
             if start_date == end_date:
                 # Single day
-                if start_dt.date() == datetime.now().date():
+                if start_dt.date() == datetime.now(local_tz).date():
                     range_label = "today"
-                elif start_dt.date() == (datetime.now() + timedelta(days=1)).date():
+                elif start_dt.date() == (datetime.now(local_tz) + timedelta(days=1)).date():
                     range_label = "tomorrow"
                 else:
                     range_label = start_dt.strftime('%A, %B %d')
@@ -613,7 +613,12 @@ Now parse the message and return ONLY the JSON.
                         continue
 
                     print(f"      ✅ INCLUDED")
-                    time_str = start_dt_event.strftime('%-I:%M %p')
+                    end = event['end'].get('dateTime')
+                    if end:
+                        end_dt_event = datetime.fromisoformat(end.replace('Z', '+00:00'))
+                        time_str = f"{start_dt_event.strftime('%I:%M %p').lstrip('0')} – {end_dt_event.strftime('%I:%M %p').lstrip('0')}"
+                    else:
+                        time_str = start_dt_event.strftime('%I:%M %p').lstrip('0')
                 else:  # all-day event
                     start_dt_event = datetime.strptime(start, '%Y-%m-%d')
                     print(f"   📌 {summary}: {start} (all-day)")

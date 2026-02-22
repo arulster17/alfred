@@ -39,18 +39,19 @@ class ConversationFeature:
         Tell the AI router what this feature can do.
         """
         return f"""
-This feature handles conversational, non-task messages.
+This feature handles casual conversation and small talk only.
 
 Examples of what this feature handles:
 - "Hello", "Hi", "Hey Alfred"
 - "How are you?", "What's up?"
 - "What can you do?", "Help me"
 - "Thanks!", "Thank you"
-- General questions about the bot
-- Small talk that doesn't involve tasks
-- Questions about capabilities
+- Questions about the bot itself
+- Casual banter with no factual answer needed
 
-This is a FALLBACK feature - use it when the message doesn't match any specific task feature
+This is a FALLBACK feature - use it ONLY when the message is social/conversational with no
+factual content. Do NOT use it for questions that have a real answer (e.g. "why does X happen",
+"how does Y work", "what is Z") — those should go to the Search feature.
         """.strip()
 
 

@@ -1,6 +1,6 @@
 import os
 import pickle
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -191,7 +191,13 @@ def search_events(query, max_results=100, time_min=None, time_max=None):
 
     # Default to searching from now onwards
     if time_min is None:
-        time_min = datetime.utcnow()
+        time_min = datetime.now(timezone.utc)
+
+    def _to_rfc3339(dt):
+        """Convert datetime to RFC3339 string with Z suffix, works on all platforms."""
+        if dt.tzinfo is not None:
+            return dt.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+        return dt.strftime('%Y-%m-%dT%H:%M:%SZ')  # assume UTC if naive
 
     params = {
         'calendarId': calendar_id,
@@ -199,11 +205,11 @@ def search_events(query, max_results=100, time_min=None, time_max=None):
         'maxResults': max_results,
         'singleEvents': True,
         'orderBy': 'startTime',
-        'timeMin': time_min.isoformat() + 'Z',
+        'timeMin': _to_rfc3339(time_min),
     }
 
     if time_max:
-        params['timeMax'] = time_max.isoformat() + 'Z'
+        params['timeMax'] = _to_rfc3339(time_max)
 
     events_result = service.events().list(**params).execute()
     events = events_result.get('items', [])
@@ -287,7 +293,7 @@ def list_upcoming_events(max_results=10):
     """
     service = get_calendar_service()
 
-    now = datetime.utcnow().isoformat() + 'Z'
+    now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
     events_result = service.events().list(
         calendarId='primary',
         timeMin=now,

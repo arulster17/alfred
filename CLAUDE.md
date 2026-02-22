@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Alfred is a general-purpose AI personal assistant that operates via Discord DMs. It uses Google Gemini to understand natural language and route requests to modular feature handlers. Currently operational with four features: Calendar Management, YouTube Downloader, Fun Facts, and Conversation.
+Alfred is a general-purpose AI personal assistant that operates via Discord DMs. It uses Google Gemini to understand natural language and route requests to modular feature handlers. Currently operational with five features: Calendar Management, YouTube Downloader, Fun Facts, Search, and Conversation.
 
 **Run the bot:**
 ```bash
@@ -41,7 +41,7 @@ All intent detection and data extraction goes through Gemini AI.
 
 ### Register task features BEFORE the conversation feature in `_load_features()`
 
-### Update `PROJECT_SUMMARY.md` after significant changes
+### Update `CLAUDE.md` after significant changes
 
 ---
 
@@ -57,6 +57,7 @@ All intent detection and data extraction goes through Gemini AI.
 | `src/features/calendar_feature.py` | Calendar: create, modify, view events |
 | `src/features/fun_fact_feature.py` | Fun fact generation |
 | `src/features/youtube_feature.py` | YouTube MP3/MP4 download (yt-dlp + ffmpeg) |
+| `src/features/search_feature.py` | Web search + factual Q&A (Gemini Google Search grounding) |
 | `src/features/conversation_feature.py` | Small talk fallback |
 | `src/utils/auth.py` | Auth utilities (minimal) |
 
@@ -141,16 +142,17 @@ Never commit `.env`, `credentials/`, or `*.pickle` files.
 - Suggest server-based (non-DM) features
 - Suggest re-doing the API/OAuth setup (already complete)
 - Over-engineer simple requests
-- Skip updating `PROJECT_SUMMARY.md` after significant changes
+- Skip updating `CLAUDE.md` after significant changes
 
 ---
 
 ## Current Features Status
 
-- **Calendar**: Create, modify, view events — fully tested ✅
+- **Calendar**: Create, modify, view events (with start+end times) — fully tested ✅
 - **YouTube Download**: MP3/MP4, individual ranges per video, up to 5 URLs, 25MB Discord limit — fully tested ✅
 - **Fun Facts**: Working ✅
-- **Conversation**: Working (fallback/small talk) ✅
+- **Search**: Factual Q&A + web search via Gemini Google Search grounding — implemented, needs testing 🔧
+- **Conversation**: Working (fallback/small talk only — factual questions route to Search) ✅
 - **AI Routing**: Working (0.6 confidence threshold) ✅
 - **Dual OAuth**: Working (readonly for view, write for bot calendar) ✅
 - **Context system**: Working (10 messages / 15 min per user, in-memory) ✅
@@ -162,8 +164,16 @@ Never commit `.env`, `credentials/`, or `*.pickle` files.
 - **Wrong feature routing**: Improve that feature's `get_capabilities()` description
 - **Calendar parsing errors**: Check `calendar_feature.py` `_parse_calendar_request()` prompt
 - **YouTube download issues**: Check `youtube_feature.py` `_parse_request()` prompt and download logic
+- **Search not triggering**: Check `search_feature.py` `get_capabilities()` and tighten `conversation_feature.py` capabilities
 - **Alfred too chatty/rigid**: Adjust `bot_context.py`
 - **Run from `src/` directory**: Imports assume `src/` as working directory
+
+## Cross-Platform Notes
+
+The codebase is compatible with Windows, macOS, and Linux:
+- `strftime` uses `%I` + `.lstrip('0')` for hour formatting (not `%-I` which is Linux/macOS only)
+- Datetime comparisons use timezone-aware `datetime.now(local_tz)` not naive `datetime.now()`
+- All paths use `pathlib.Path`; temp dirs use `tempfile.gettempdir()`
 
 Console logs show: `👤 USER`, `📚 context`, `🤖 routing decision`, `🤵 ALFRED response`
 
